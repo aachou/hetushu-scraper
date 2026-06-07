@@ -1,6 +1,6 @@
-# hetushu_scraper
+# hetushu-scraper
 
-hetushu_scraper 旨在帮助你高效地将<和图书 (Hetushu)>网站上的小说一键抓取并生成 EPUB 格式电子书。
+hetushu-scraper 旨在帮助你高效地将<和图书 (Hetushu)>网站上的小说一键抓取并生成 EPUB 格式电子书。
 
 ## 环境准备
 
