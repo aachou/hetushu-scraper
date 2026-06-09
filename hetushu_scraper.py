@@ -127,8 +127,9 @@ async def fetch_chapter(context, book_id, global_idx, chap_title, chap_url, nav_
     """下载单章内容，失败时自动重试（指数退避），成功后写入磁盘缓存。"""
     for attempt in range(MAX_RETRIES):
         async with sem:
-            page = await context.new_page()
+            page = None
             try:
+                page = await context.new_page()
                 await page.route("**/*", intercept_route)
                 await page.goto(chap_url, timeout=30000)
                 await page.wait_for_selector("#content", timeout=20000)
@@ -166,7 +167,8 @@ async def fetch_chapter(context, book_id, global_idx, chap_title, chap_url, nav_
                 else:
                     return global_idx, chap_title, None, str(e)
             finally:
-                await page.close()
+                if page:
+                    await page.close()
 
     return global_idx, chap_title, None, "Unknown error"
 
@@ -185,54 +187,56 @@ async def download_hetushu_book(book_id: str):
     browser = await launch_async(headless=False, humanize=True)
     context = await browser.new_context(user_agent=ua)
 
-    # ---- 首页加载（带重试）-----------------------------------------------
-    last_error = None
-    for attempt in range(MAX_RETRIES):
-        page = await context.new_page()
-        try:
-            await page.goto(base_url, timeout=30000)
+    try:
+        # ---- 首页加载（带重试）-----------------------------------------------
+        last_error = None
+        for attempt in range(MAX_RETRIES):
+            page = None
+            page = await context.new_page()
+            try:
+                await page.goto(base_url, timeout=30000)
 
-            book_title = await page.evaluate(
-                "() => document.querySelector('h2').innerText.trim()"
-            )
+                book_title = await page.evaluate(
+                    "() => document.querySelector('h2').innerText.trim()"
+                )
 
-            toc_data = await page.evaluate("""() => {
-                const dirDiv = document.getElementById('dir');
-                let result = [];
-                let currentVolume = "正文";
-                let currentChapters = [];
-                dirDiv.querySelectorAll('dt, dd').forEach(item => {
-                    if (item.tagName === 'DT') {
-                        if (currentChapters.length > 0)
-                            result.push({ volume: currentVolume, chapters: currentChapters });
-                        currentVolume = item.innerText.trim();
-                        currentChapters = [];
-                    } else {
-                        const a = item.querySelector('a');
-                        if (a) currentChapters.push({
-                            title: a.innerText.trim(),
-                            href: a.getAttribute('href')
-                        });
-                    }
-                });
-                if (currentChapters.length > 0)
-                    result.push({ volume: currentVolume, chapters: currentChapters });
-                return result;
-            }""")
+                toc_data = await page.evaluate("""() => {
+                    const dirDiv = document.getElementById('dir');
+                    let result = [];
+                    let currentVolume = "正文";
+                    let currentChapters = [];
+                    dirDiv.querySelectorAll('dt, dd').forEach(item => {
+                        if (item.tagName === 'DT') {
+                            if (currentChapters.length > 0)
+                                result.push({ volume: currentVolume, chapters: currentChapters });
+                            currentVolume = item.innerText.trim();
+                            currentChapters = [];
+                        } else {
+                            const a = item.querySelector('a');
+                            if (a) currentChapters.push({
+                                title: a.innerText.trim(),
+                                href: a.getAttribute('href')
+                            });
+                        }
+                    });
+                    if (currentChapters.length > 0)
+                        result.push({ volume: currentVolume, chapters: currentChapters });
+                    return result;
+                }""")
 
-            break  # 成功，跳出重试循环
-        except Exception as e:
-            last_error = e
-            if attempt < MAX_RETRIES - 1:
-                delay = RETRY_DELAY_BASE * (attempt + 1)
-                print(f"⚠️ 首页加载失败（第 {attempt+1} 次），{delay} 秒后重试... ({e})")
-                await asyncio.sleep(delay)
-            else:
-                print(f"❌ 首页解析失败（已重试 {MAX_RETRIES} 次）: {last_error}")
-                await browser.close()
-                return
-        finally:
-            await page.close()
+                break  # 成功，跳出重试循环
+            except Exception as e:
+                last_error = e
+                if attempt < MAX_RETRIES - 1:
+                    delay = RETRY_DELAY_BASE * (attempt + 1)
+                    print(f"⚠️ 首页加载失败（第 {attempt+1} 次），{delay} 秒后重试... ({e})")
+                    await asyncio.sleep(delay)
+                else:
+                    print(f"❌ 首页解析失败（已重试 {MAX_RETRIES} 次）: {last_error}")
+                    return
+            finally:
+                if page:
+                    await page.close()
 
     # ---- 解析目录结构 ---------------------------------------------------
     toc_info = []          # [{ volume, chapters: [(title, idx), ...] }, ...]
@@ -336,7 +340,12 @@ async def download_hetushu_book(book_id: str):
     # 生成成功 → 清理该书缓存
     clear_cache(book_id)
     print(f"\n\U0001f389 电子书已生成: {safe_title}.epub")
-    await browser.close()
+    
+    finally:
+        try:
+            await browser.close()
+        except Exception:
+            pass
 
 
 if __name__ == '__main__':
