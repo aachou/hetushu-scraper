@@ -1,63 +1,51 @@
 # hetushu-scraper
 
-hetushu-scraper 旨在帮助你高效地将[和图书 (Hetushu)](https://www.hetushu.com) 网站上的小说一键抓取并生成 EPUB 格式电子书。
+抓取[和图书 (Hetushu)](https://www.hetushu.com) 上的小说并一键生成 EPUB 电子书。
 
-## 环境准备
+## 快速开始
 
-在运行代码之前，请确保你的电脑已安装 Python（建议 3.8+）。
+```bash
+uv run python -m hetushu_scraper                        # 提示输入书籍 ID
+uv run python -m hetushu_scraper 12345                  # 直接下载书籍 12345
+uv run python -m hetushu_scraper 12345 --headless       # 无头模式，不显示浏览器
+uv run python -m hetushu_scraper 12345 --output ./books # 指定输出目录
+uv run python -m hetushu_scraper 12345 --max-retries 5  # 自定义重试次数
+uv run python -m hetushu_scraper 12345 --timeout 60000  # 自定义超时（毫秒）
+uv run python -m hetushu_scraper 12345 --verbose        # 详细日志
+```
 
-1. 安装依赖库。打开终端（CMD、PowerShell 或 Terminal），运行以下命令安装必要的 Python 库：
-   ```
-   pip install ebooklib cloakbrowser tqdm
-   ```
+> 书籍 ID 可从详情页 URL 获取：`https://www.hetushu.com/book/12345/index.html` → `12345`
 
-2. 首次运行说明
+首次运行会后台自动下载约 200MB 的 Chromium 内核，请耐心等待几分钟。
 
-   首次启动脚本时，CloakBrowser 会自动在后台下载定制版的安全 Chromium 内核（约 200MB），可能需要花费几分钟时间，请耐心等待。之后再次运行即可秒开。
+## 功能
 
-## 如何运行
-
-方式 A：通过命令行直接启动脚本 `python hetushu_scraper.py` 或者直接双击运行脚本，程序会提示你输入书籍 ID。
-
-方式 B：通过命令行参数传入书籍 ID 启动脚本 `python hetushu_scraper.py <id>`。
-
-> 书籍 ID 可从和图书网站书籍详情页的 URL 中获取，例如 `https://www.hetushu.com/book/12345/index.html`，ID 即为 `12345`。
-
-## 功能特性
-
-- **降维打击的反爬能力**：默认启用 `headless=False`（有头模式）配合 CloakBrowser 源码级硬件指纹伪装，结合 **动态 User-Agent 轮换池**（每次运行随机选取），模拟 100% 真实物理用户行为，彻底解决高并发下载时的大面积超时（Timeout）与限流问题。
-- **智能重试与指数退避**：首页加载与章节下载均内置 **3 次自动重试**，每次等待时间指数递增（2s → 4s → 6s），最大限度抵抗网络抖动。
-- **断点续传缓存系统**：章节内容实时落盘到 `.chapter_cache/` 目录，采用 **原子写入**（先写 `.tmp` 再 `rename`）防止断电或崩溃导致半截文件。支持：
-  - 因网络或意外中断后重新运行脚本，自动跳过已缓存的章节，只下载剩余部分。
-  - 缓存损坏时自动识别并删除，触发重新下载，无需手动干预。
-  - EPUB 生成成功后自动清理缓存，不留垃圾。
-- **卷目录跳转**：生成的 EPUB 总目录中，卷名（Section）已被设置为可点击。点击卷名会自动跳转到该卷的第一章。
-- **高并发异步抓取**：采用 `asyncio` 异步并发控制（默认 8 路并发），极大地缩短了整本书的下载时间。
-- **Windows 终端兼容**：自动强制 stdout/stderr 使用 UTF-8 编码，避免 GBK 终端输出 emoji 时崩溃。
-- **格式美化**：内置基础 CSS 样式，确保在 Kindle、Apple Books、Calibre 等主流阅读器中显示清晰。
-
-## 常见问题解答 (FAQ)
-
-**Q：为什么启动后会自动弹出一个浏览器窗口？我可以关掉它吗？**
-
-A：**绝对不要手动关闭它！** 这是实现 100% 成功率的核心所在（`headless=False`）。该窗口是自动化引擎为了骗过防火墙而建立的真实渲染窗口。它会自动在后台翻页下载，下载完成后会自动关闭。如果你手动关闭它，会导致当前下载任务中断报错。
-
----
-
-**Q：抓取时提示连接失败？**
-
-A：本脚本内置了 **3 次自动重试 + 指数退避** 机制（每次重试等待时间翻倍：2s → 4s → 6s）。如果重试 3 次后仍然失败，该章节会被跳过并在最终报告中列出。若网络环境持续不稳定，可以适当调大代码中的 `MAX_RETRIES` 或 `timeout` 参数，或检查你的网络是否能正常访问目标网站。
-
----
-
-**Q：下载中途中断了，需要重新下载整本书吗？**
-
-A：不需要。脚本内置了 **断点续传缓存系统**。章节内容下载后会立即写入 `./.chapter_cache/` 目录（原子写入，防崩溃）。重新运行脚本时会自动检测缓存，跳过已成功下载的章节，只抓取缺失的部分，节省大量时间。
+- **反爬**：CloakBrowser + 随机 User-Agent，模拟真实浏览器行为（默认有头，支持 `--headless`）
+- **重试**：失败自动重试（默认 3 次），等待时间指数递增；`--max-retries` 和 `--timeout` 可自由调整
+- **缓存**：章节写入 `.chapter_cache/`，支持断点续传；成功生成 EPUB 后自动清理
+- **并发**：asyncio 异步，默认 8 路并发下载
+- **EPUB**：含卷目录跳转、图片自适应、代码块样式，兼容 Kindle / Apple Books / Calibre
+- **报错汇总**：下载结束列出所有失败章节及原因
+- **调试快照**：首页解析失败时自动保存 `debug_{book_id}/index_page.html` 供排查
+- **详细日志**：`--verbose` 打印每个请求/响应、缓存状态、章节耗时
+- **Windows 兼容**：自动强制 UTF-8 编码，避免 emoji 在 GBK 终端崩溃
 
 > 如需强制全量重新下载，删除 `.chapter_cache/` 目录即可。
 
-## 版权与免责声明
+## FAQ
 
-该工具仅供个人学习和研究技术使用。
+**启动后弹出浏览器窗口，能关掉吗？**
 
-请遵守相关网站的使用协议，尊重书籍版权，请勿将生成的文件用于商业用途或违法传播。
+可以，使用 `--headless` 参数即可隐藏窗口。CloakBrowser 自动化引擎会在后台翻页下载，完成后自动关闭。
+
+**连接失败怎么办？**
+
+内置自动重试。可通过 `--max-retries` 调整重试次数（默认 3），`--timeout` 调整页面超时（默认 30000ms）。若章节多次重试后仍失败，该章节会被跳过，最终 EPUB 只包含成功下载的内容。
+
+**下载中断了要重头开始吗？**
+
+不需要。脚本会自动检测 `.chapter_cache/` 中的缓存，跳过已下载章节。
+
+## 免责声明
+
+本工具仅供个人学习和研究使用。请遵守目标网站的使用协议，尊重版权，勿将生成的文件用于商业用途或违法传播。
