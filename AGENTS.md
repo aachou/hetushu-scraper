@@ -4,7 +4,7 @@
 
 - **Python >=3.14** required (`pyproject.toml` enforces this).
 - Package manager: **uv** (`uv sync`, `uv lock`, `uv run`). No pip-based workflow.
-- **Tests**: `uv run pytest` (20 tests covering config, cache, fetcher). Uses `tmp_path` + `monkeypatch` for cache isolation.
+- **Tests**: `uv run pytest` (27 tests covering config, cache, fetcher). Uses `tmp_path` + `monkeypatch` for cache isolation.
 
 ## Run
 
