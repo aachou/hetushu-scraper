@@ -11,6 +11,8 @@ uv run python -m hetushu_scraper 12345 --headless       # 无头模式，不显�
 uv run python -m hetushu_scraper 12345 --output ./books # 指定输出目录
 uv run python -m hetushu_scraper 12345 --max-retries 5  # 自定义重试次数
 uv run python -m hetushu_scraper 12345 --timeout 60000  # 自定义超时（毫秒）
+uv run python -m hetushu_scraper 12345 --concurrency 4  # 限制并发数
+uv run python -m hetushu_scraper 12345 --delay 1.5      # 请求间隔（秒）
 uv run python -m hetushu_scraper 12345 --verbose        # 详细日志
 ```
 
@@ -23,7 +25,7 @@ uv run python -m hetushu_scraper 12345 --verbose        # 详细日志
 - **反爬**：CloakBrowser + 随机 User-Agent，模拟真实浏览器行为（默认有头，支持 `--headless`）
 - **重试**：失败自动重试（默认 3 次），等待时间指数递增；`--max-retries` 和 `--timeout` 可自由调整
 - **缓存**：章节写入 `.chapter_cache/`，支持断点续传；成功生成 EPUB 后自动清理
-- **并发**：asyncio 异步，默认 8 路并发下载
+- **并发与限速**：`--concurrency` 控制最大并行页面数（默认 8），`--delay` 设置每个请求前的等待秒数（默认 0）
 - **EPUB**：含卷目录跳转、图片自适应、代码块样式，兼容 Kindle / Apple Books / Calibre
 - **报错汇总**：下载结束列出所有失败章节及原因
 - **调试快照**：首页解析失败时自动保存 `debug_{book_id}/index_page.html` 供排查
@@ -41,6 +43,10 @@ uv run python -m hetushu_scraper 12345 --verbose        # 详细日志
 **连接失败怎么办？**
 
 内置自动重试。可通过 `--max-retries` 调整重试次数（默认 3），`--timeout` 调整页面超时（默认 30000ms）。若章节多次重试后仍失败，该章节会被跳过，最终 EPUB 只包含成功下载的内容。
+
+**怎么限制并发和爬取速度？**
+
+`--concurrency` 控制同时打开的页面数（默认 8），`--delay` 设置每个请求前的等待秒数（默认 0）。例如 `--concurrency 1 --delay 2` 表示每 2 秒下载一个章节，对目标服务器最友好。
 
 **下载中断了要重头开始吗？**
 

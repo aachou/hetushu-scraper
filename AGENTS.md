@@ -15,6 +15,8 @@ uv run python -m hetushu_scraper 12345 --headless       # hide browser window
 uv run python -m hetushu_scraper 12345 --output ./books # custom output dir
 uv run python -m hetushu_scraper 12345 --max-retries 5  # override retries
 uv run python -m hetushu_scraper 12345 --timeout 60000  # longer page timeout
+uv run python -m hetushu_scraper 12345 --concurrency 4  # limit concurrent pages
+uv run python -m hetushu_scraper 12345 --delay 1.5      # wait 1.5s between requests
 uv run python -m hetushu_scraper 12345 --verbose        # detailed request/response logs
 ```
 
@@ -29,7 +31,7 @@ uv run python -m hetushu_scraper 12345 --verbose        # detailed request/respo
 - **Entry points**: `hetushu_scraper.py` (file) or `python -m hetushu_scraper`
   - Root `hetushu_scraper.py` does `from hetushu_scraper.cli import run_cli` — the file name collides with the package name on import but works on Python 3.14.5 because the package directory wins.
 - **CloakBrowser** (not raw Playwright) wraps Chromium; `headless=False` default, `humanize=True`. First run downloads ~200MB Chromium silently.
-- **Async** concurrency via `asyncio.Semaphore(8)` + `asyncio.as_completed()`.
+- **Async** concurrency via `asyncio.Semaphore()` (default 8, configurable via `--concurrency`) + `asyncio.as_completed()`. Rate limiting via `--delay` (seconds per request, default 0).
 - **Cache** at `.chapter_cache/{book_id}/{idx}.json` (atomic writes via `.tmp`+`os.replace`). Delete dir to force full redownload.
 - **Windows fix**: `hetushu_scraper/__init__.py` forces UTF-8 on stdout/stderr; skips when `PYTEST_VERSION` is set.
 - **Python 3.14+ quirk**: `try/finally` wrapping a `for` loop with a nested `try/except/finally` (that has `break` + `return`) triggers a SyntaxError. The homepage retry loop was restructured to put the `for` loop outside the outer `try` to avoid this.

@@ -3,7 +3,7 @@ import asyncio
 import sys
 
 from .downloader import download_hetushu_book
-from .config import MAX_RETRIES
+from .config import MAX_RETRIES, DEFAULT_CONCURRENCY, DEFAULT_REQUEST_DELAY
 
 
 def run_cli():
@@ -13,6 +13,10 @@ def run_cli():
     parser.add_argument('--output', '-o', default=None, help='EPUB 输出路径（目录或 .epub 文件路径）')
     parser.add_argument('--max-retries', type=int, default=MAX_RETRIES, help=f'最大重试次数（默认 {MAX_RETRIES}）')
     parser.add_argument('--timeout', type=int, default=30000, help='页面加载超时毫秒数（默认 30000）')
+    parser.add_argument('--concurrency', '-c', type=int, default=DEFAULT_CONCURRENCY,
+                        help=f'最大并发页面数（默认 {DEFAULT_CONCURRENCY}）')
+    parser.add_argument('--delay', '-d', type=float, default=DEFAULT_REQUEST_DELAY,
+                        help=f'每个请求前等待秒数（默认 {DEFAULT_REQUEST_DELAY}，用于控制爬取速度）')
     parser.add_argument('--verbose', '-v', action='store_true', help='启用详细日志')
 
     args = parser.parse_args()
@@ -33,5 +37,7 @@ def run_cli():
         output=args.output,
         max_retries=args.max_retries,
         timeout=args.timeout,
+        concurrency=args.concurrency,
+        delay=args.delay,
         verbose=args.verbose,
     ))

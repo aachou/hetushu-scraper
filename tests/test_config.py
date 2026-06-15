@@ -1,4 +1,11 @@
-from hetushu_scraper.config import CSS_STYLE, MAX_RETRIES, RETRY_DELAY_BASE, MAX_CONCURRENT_PAGES
+import inspect
+
+from hetushu_scraper.config import (
+    CSS_STYLE, MAX_RETRIES, RETRY_DELAY_BASE,
+    DEFAULT_CONCURRENCY, DEFAULT_REQUEST_DELAY,
+)
+from hetushu_scraper.fetcher import fetch_chapter
+from hetushu_scraper.downloader import download_hetushu_book
 
 
 class TestConfig:
@@ -20,5 +27,33 @@ class TestConfig:
     def test_retry_delay_base(self):
         assert RETRY_DELAY_BASE == 2
 
-    def test_max_concurrent_pages(self):
-        assert MAX_CONCURRENT_PAGES == 8
+    def test_default_concurrency_value(self):
+        assert DEFAULT_CONCURRENCY == 8
+
+    def test_default_concurrency_type(self):
+        assert isinstance(DEFAULT_CONCURRENCY, int)
+        assert DEFAULT_CONCURRENCY > 0
+
+    def test_default_request_delay_value(self):
+        assert DEFAULT_REQUEST_DELAY == 0.0
+
+    def test_default_request_delay_type(self):
+        assert isinstance(DEFAULT_REQUEST_DELAY, (int, float))
+        assert DEFAULT_REQUEST_DELAY >= 0
+
+    def test_fetch_chapter_accepts_sem(self):
+        sig = inspect.signature(fetch_chapter)
+        assert "sem" in sig.parameters
+
+    def test_fetch_chapter_accepts_delay(self):
+        sig = inspect.signature(fetch_chapter)
+        param = sig.parameters["delay"]
+        assert param.default == 0
+
+    def test_download_book_accepts_concurrency(self):
+        sig = inspect.signature(download_hetushu_book)
+        assert "concurrency" in sig.parameters
+
+    def test_download_book_accepts_delay(self):
+        sig = inspect.signature(download_hetushu_book)
+        assert "delay" in sig.parameters

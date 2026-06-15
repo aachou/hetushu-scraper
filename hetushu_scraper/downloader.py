@@ -7,14 +7,17 @@ from cloakbrowser import launch_async
 from tqdm import tqdm
 from urllib.parse import urljoin
 
-from .config import MAX_RETRIES, RETRY_DELAY_BASE, USER_AGENTS, CSS_STYLE
+from .config import MAX_RETRIES, RETRY_DELAY_BASE, DEFAULT_CONCURRENCY, DEFAULT_REQUEST_DELAY, USER_AGENTS, CSS_STYLE
 from .cache import get_cached_indices, build_epub_html_from_cache, clear_cache
 from .fetcher import fetch_chapter
 
 
-async def download_hetushu_book(book_id: str, *, headless=False, output=None, max_retries=None, timeout=None, verbose=False):
+async def download_hetushu_book(book_id: str, *, headless=False, output=None, max_retries=None, timeout=None, concurrency=None, delay=None, verbose=False):
     max_retries = max_retries or MAX_RETRIES
     timeout = timeout or 30000
+    concurrency = concurrency if concurrency is not None else DEFAULT_CONCURRENCY
+    delay = delay if delay is not None else DEFAULT_REQUEST_DELAY
+    sem = asyncio.Semaphore(concurrency)
 
     base_url = f"https://www.hetushu.com/book/{book_id}/index.html"
     ua = random.choice(USER_AGENTS)
@@ -142,7 +145,7 @@ async def download_hetushu_book(book_id: str, *, headless=False, output=None, ma
                 chap_url = urljoin(base_url, ch['href'])
                 tasks.append(
                     fetch_chapter(context, book_id, global_idx, ch['title'], chap_url, nav_css,
-                                  max_retries=max_retries, timeout=timeout, verbose=verbose)
+                                  sem=sem, delay=delay, max_retries=max_retries, timeout=timeout, verbose=verbose)
                 )
             global_idx += 1
 

@@ -3,7 +3,7 @@ import asyncio
 from ebooklib import epub
 from tqdm import tqdm
 
-from .config import MAX_RETRIES, RETRY_DELAY_BASE, sem
+from .config import MAX_RETRIES, RETRY_DELAY_BASE
 from .cache import save_chapter_cache
 
 
@@ -22,13 +22,15 @@ async def intercept_route(route):
 
 
 async def fetch_chapter(context, book_id, global_idx, chap_title, chap_url, nav_css,
-                        *, max_retries=None, timeout=None, verbose=False):
+                        *, sem, delay=0, max_retries=None, timeout=None, verbose=False):
     max_retries = max_retries or MAX_RETRIES
     timeout = timeout or 30000
     selector_timeout = int(timeout * 2 / 3)
 
     for attempt in range(max_retries):
         async with sem:
+            if delay:
+                await asyncio.sleep(delay)
             page = None
             try:
                 if verbose:
@@ -61,12 +63,12 @@ async def fetch_chapter(context, book_id, global_idx, chap_title, chap_url, nav_
                 return global_idx, chap_title, c, None
             except Exception as e:
                 if attempt < max_retries - 1:
-                    delay = RETRY_DELAY_BASE * (attempt + 1)
+                    retry_delay = RETRY_DELAY_BASE * (attempt + 1)
                     tqdm.write(
                         f"⚠️ 第 {global_idx} 章「{chap_title}」下载失败，"
-                        f"{delay} 秒后重试 ({attempt+1}/{max_retries})... {e}"
+                        f"{retry_delay} 秒后重试 ({attempt+1}/{max_retries})... {e}"
                     )
-                    await asyncio.sleep(delay)
+                    await asyncio.sleep(retry_delay)
                 else:
                     return global_idx, chap_title, None, str(e)
             finally:
