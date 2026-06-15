@@ -1,57 +1,64 @@
 # hetushu-scraper
 
-抓取[和图书 (Hetushu)](https://www.hetushu.com) 上的小说并一键生成 EPUB 电子书。
-
-## 快速开始
+把[和图书](https://www.hetushu.com)上的小说一键下载为 EPUB 电子书。
 
 ```bash
-uv run python -m hetushu_scraper                        # 提示输入书籍 ID
-uv run python -m hetushu_scraper 12345                  # 直接下载书籍 12345
-uv run python -m hetushu_scraper 12345 --headless       # 无头模式，不显示浏览器
-uv run python -m hetushu_scraper 12345 --output ./books # 指定输出目录
-uv run python -m hetushu_scraper 12345 --max-retries 5  # 自定义重试次数
-uv run python -m hetushu_scraper 12345 --timeout 60000  # 自定义超时（毫秒）
-uv run python -m hetushu_scraper 12345 --concurrency 4  # 限制并发数
-uv run python -m hetushu_scraper 12345 --delay 1.5      # 请求间隔（秒）
-uv run python -m hetushu_scraper 12345 --verbose        # 详细日志
+uv sync && uv run python -m hetushu_scraper 12345
 ```
 
-> 书籍 ID 可从详情页 URL 获取：`https://www.hetushu.com/book/12345/index.html` → `12345`
+> 书籍 ID 从页面 URL 获取：`https://www.hetushu.com/book/12345/index.html` → `12345`
+>
+> 首次运行会自动下载约 200MB Chromium 内核，稍等片刻。
 
-首次运行会后台自动下载约 200MB 的 Chromium 内核，请耐心等待几分钟。
+---
 
-## 功能
+## 🎮 所有参数
 
-- **反爬**：CloakBrowser + 随机 User-Agent，模拟真实浏览器行为（默认有头，支持 `--headless`）
-- **重试**：失败自动重试（默认 3 次），等待时间指数递增；`--max-retries` 和 `--timeout` 可自由调整
-- **缓存**：章节写入 `.chapter_cache/`，支持断点续传；成功生成 EPUB 后自动清理
-- **并发与限速**：`--concurrency` 控制最大并行页面数（默认 8），`--delay` 设置每个请求前的等待秒数（默认 0）
-- **EPUB**：含卷目录跳转、图片自适应、代码块样式，兼容 Kindle / Apple Books / Calibre
-- **报错汇总**：下载结束列出所有失败章节及原因
-- **调试快照**：首页解析失败时自动保存 `debug_{book_id}/index_page.html` 供排查
-- **详细日志**：`--verbose` 打印每个请求/响应、缓存状态、章节耗时
-- **Windows 兼容**：自动强制 UTF-8 编码，避免 emoji 在 GBK 终端崩溃
+| 参数 | 作用 | 默认值 |
+|------|------|--------|
+| `book_id` | 书籍 ID（省略则交互输入） | — |
+| `-o` / `--output` | 输出目录或 `.epub` 路径 | 当前目录 |
+| `--headless` | 隐藏浏览器窗口 | 显示窗口 |
+| `--concurrency` / `-c` | 同时下载几个章节 | `8` |
+| `--delay` / `-d` | 每次请求前等待秒数 | `0`（不限速） |
+| `--max-retries` | 失败重试次数 | `3` |
+| `--timeout` | 页面加载超时（毫秒） | `30000` |
+| `--verbose` / `-v` | 打印详细请求日志 | 关闭 |
 
-> 如需强制全量重新下载，删除 `.chapter_cache/` 目录即可。
+**常用组合：**`--concurrency 1 --delay 2` → 每 2 秒一章，对服务器最友好。
 
-## FAQ
+---
 
-**启动后弹出浏览器窗口，能关掉吗？**
+## ✨ 功能一览
 
-可以，使用 `--headless` 参数即可隐藏窗口。CloakBrowser 自动化引擎会在后台翻页下载，完成后自动关闭。
+- 🕵️ **反爬** — CloakBrowser 模拟真人，随机换 User-Agent
+- 🔁 **断点续传** — 下次重跑跳过已下载章节
+- 📦 **EPUB 输出** — 带章节目录，Kindle / Apple Books / Calibre 通用
+- ⏱ **自动重试** — 失败重试 3 次，越等越久
+- 🖼️ **图片 & 代码** — EPUB 内图片自适应，代码块有样式
+- 📋 **失败汇总** — 下载完告诉你哪些章节挂了
+- 🪟 **Windows 没问题** — 不乱码、不崩溃
 
-**连接失败怎么办？**
+> 想重新下载？删掉 `.chapter_cache/` 目录即可。
 
-内置自动重试。可通过 `--max-retries` 调整重试次数（默认 3），`--timeout` 调整页面超时（默认 30000ms）。若章节多次重试后仍失败，该章节会被跳过，最终 EPUB 只包含成功下载的内容。
+---
 
-**怎么限制并发和爬取速度？**
+## ❓ 常见问题
 
-`--concurrency` 控制同时打开的页面数（默认 8），`--delay` 设置每个请求前的等待秒数（默认 0）。例如 `--concurrency 1 --delay 2` 表示每 2 秒下载一个章节，对目标服务器最友好。
+**能不能关掉浏览器窗口？**
 
-**下载中断了要重头开始吗？**
+加 `--headless` 就行，浏览器在后台静默工作。
 
-不需要。脚本会自动检测 `.chapter_cache/` 中的缓存，跳过已下载章节。
+**网络不好总失败？**
 
-## 免责声明
+脚本会自动重试。还不行就加 `--max-retries 5 --timeout 60000` 给更多耐心。最终失败章节会被跳过，不影响已成功的。
 
-本工具仅供个人学习和研究使用。请遵守目标网站的使用协议，尊重版权，勿将生成的文件用于商业用途或违法传播。
+**下载一半断了，要重来吗？**
+
+不用。再跑一次会自动跳过已缓存章节，只下载缺失的。
+
+---
+
+## ⚖️ 免责声明
+
+仅供个人学习研究。请遵守目标网站协议，尊重版权，勿商用或违法传播。
