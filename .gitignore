@@ -1,4 +1,4 @@
 __pycache__/
 .chapter_cache/
-debug_*/
+debug_*
 *.epub
