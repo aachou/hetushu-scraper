@@ -22,7 +22,7 @@ async def download_hetushu_book(book_id: str, *, headless=False, output=None, ma
     base_url = f"https://www.hetushu.com/book/{book_id}/index.html"
     ua = random.choice(USER_AGENTS)
 
-    print(f"\n🚀 正在通过 CloakBrowser{' 无头' if headless else ''}模式启动浏览器，抓取书籍 ID: {book_id}")
+    print(f"\n🚀 正在通过 CloakBrowser {'无头' if headless else ''}模式启动浏览器，抓取书籍 ID: {book_id}")
     print(f"📋 本次 User-Agent: {ua[:80]}...")
 
     browser = await launch_async(headless=headless, humanize=True)
