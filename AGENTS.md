@@ -4,20 +4,20 @@
 
 - **Python >=3.14** required (`pyproject.toml` enforces this).
 - Package manager: **uv** (`uv sync`, `uv lock`, `uv run`). No pip-based workflow.
-- **Tests**: `uv run pytest` (27 tests covering config, cache, fetcher). Uses `tmp_path` + `monkeypatch` for cache isolation.
+- **Tests**: `uv run pytest` (39 tests covering config, cache, fetcher, epub). Uses `tmp_path` + `monkeypatch` for cache isolation.
 
 ## Run
 
 ```bash
-uv run hetushu_scraper.py                               # prompts for book ID
-uv run hetushu_scraper.py 12345                         # download book 12345
-uv run hetushu_scraper.py 12345 --headless              # hide browser window
-uv run hetushu_scraper.py 12345 --output ./books        # custom output dir
-uv run hetushu_scraper.py 12345 --max-retries 5         # override retries
-uv run hetushu_scraper.py 12345 --timeout 60000         # longer page timeout
-uv run hetushu_scraper.py 12345 --concurrency 4         # limit concurrent pages
-uv run hetushu_scraper.py 12345 --delay 1.5             # wait 1.5s between requests
-uv run hetushu_scraper.py 12345 --verbose               # detailed request/response logs
+uv run main.py                               # prompts for book ID
+uv run main.py 12345                         # download book 12345
+uv run main.py 12345 --headless              # hide browser window
+uv run main.py 12345 --output ./books        # custom output dir
+uv run main.py 12345 --max-retries 5         # override retries
+uv run main.py 12345 --timeout 60000         # longer page timeout
+uv run main.py 12345 --concurrency 4         # limit concurrent pages
+uv run main.py 12345 --delay 1.5             # wait 1.5s between requests
+uv run main.py 12345 --verbose               # detailed request/response logs
 ```
 
 ## Architecture
@@ -28,8 +28,8 @@ uv run hetushu_scraper.py 12345 --verbose               # detailed request/respo
   - `fetcher.py` — `fetch_chapter()` + `clean_typography()`
   - `downloader.py` — `download_hetushu_book()`
   - `cli.py` — `run_cli()`
-- **Entry point**: `hetushu_scraper.py` (root file)
-  - Root `hetushu_scraper.py` does `from hetushu_scraper.cli import run_cli` — the file name collides with the package name on import but works on Python 3.14.5 because the package directory wins.
+- **Entry point**: `main.py` (root file)
+  - Root `main.py` does `from hetushu_scraper.cli import run_cli`.
 - **CloakBrowser** (not raw Playwright) wraps Chromium; `headless=False` default, `humanize=True`. First run downloads ~200MB Chromium silently.
 - **Async** concurrency via `asyncio.Semaphore()` (default 8, configurable via `--concurrency`) + `asyncio.as_completed()`. Rate limiting via `--delay` (seconds per request, default 0).
 - **Cache** at `.chapter_cache/{book_id}/{idx}.json` (atomic writes via `.tmp`+`os.replace`). Delete dir to force full redownload.
@@ -40,10 +40,9 @@ uv run hetushu_scraper.py 12345 --verbose               # detailed request/respo
 
 - **No linter, type checker, or formatter** configured. Do not assume any exist.
 - **`intercept_route()`** blocks images/fonts but not CSS/JS.
-- Failed chapters are silently skipped; EPUB includes only successfully downloaded content, with a failure summary at the end.
+- Failed chapters are retried once automatically; if still failing, EPUB includes only successfully downloaded content with a failure summary at the end.
 - Git remote: `git@github.com:aachou/hetushu-scraper.git` (SSH). Single `main` branch.
-- `uv.lock`, `pyproject.toml`, `.python-version` are currently untracked (mid-migration from raw pip).
-- `asyncio.WindowsProactorEventLoopPolicy` is deprecated as of Python 3.14 and slated for removal in 3.16; the `__main__` block may need updating.
+- Cache is preserved after EPUB generation by default (use `--no-cache` to discard).
 
 ## Github release
 

@@ -17,11 +17,11 @@ def _cached_path(book_id: str, idx: int) -> str:
     return os.path.join(_cache_dir_for(book_id), f"{idx}.json")
 
 
-def get_cached_indices(book_id: str) -> set:
+def get_cached_indices(book_id: str) -> set[int]:
     d = os.path.join(CACHE_DIR, book_id)
     if not os.path.isdir(d):
         return set()
-    indices = set()
+    indices: set[int] = set()
     for fname in os.listdir(d):
         if fname.endswith(".json"):
             try:
@@ -31,7 +31,7 @@ def get_cached_indices(book_id: str) -> set:
     return indices
 
 
-def build_epub_html_from_cache(book_id: str, idx: int, nav_css):
+def build_epub_html_from_cache(book_id: str, idx: int, nav_css) -> epub.EpubHtml | None:
     path = _cached_path(book_id, idx)
     if not os.path.exists(path):
         return None
@@ -50,7 +50,7 @@ def build_epub_html_from_cache(book_id: str, idx: int, nav_css):
         return None
 
 
-def save_chapter_cache(book_id: str, idx: int, title: str, content: str):
+def save_chapter_cache(book_id: str, idx: int, title: str, content: str) -> None:
     path = _cached_path(book_id, idx)
     tmp_path = path + ".tmp"
     with open(tmp_path, "w", encoding="utf-8") as f:
@@ -58,7 +58,7 @@ def save_chapter_cache(book_id: str, idx: int, title: str, content: str):
     os.replace(tmp_path, path)
 
 
-def clear_cache(book_id: str):
+def clear_cache(book_id: str) -> None:
     d = os.path.join(CACHE_DIR, book_id)
     if os.path.isdir(d):
         shutil.rmtree(d)

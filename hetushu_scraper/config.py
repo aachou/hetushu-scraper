@@ -1,8 +1,10 @@
-DEFAULT_CONCURRENCY = 8
-DEFAULT_REQUEST_DELAY = 0.0
-MAX_RETRIES = 3
-RETRY_DELAY_BASE = 2
-CACHE_DIR = ".chapter_cache"
+from typing import Final
+
+DEFAULT_CONCURRENCY: Final[int] = 8
+DEFAULT_REQUEST_DELAY: Final[float] = 0.0
+MAX_RETRIES: Final[int] = 3
+RETRY_DELAY_BASE: Final[int] = 2
+CACHE_DIR: Final[str] = ".chapter_cache"
 
 CSS_STYLE = """
     p { text-indent: 2em; margin-bottom: 0.5em; line-height: 1.6; }

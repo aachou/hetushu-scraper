@@ -3,7 +3,7 @@
 把[和图书](https://www.hetushu.com)上的小说一键下载为 EPUB 电子书。
 
 ```bash
-uv sync && uv run python -m hetushu_scraper 12345
+uv sync && uv run main.py 12345
 ```
 
 > 书籍 ID 从页面 URL 获取：`https://www.hetushu.com/book/12345/index.html` → `12345`
@@ -23,6 +23,7 @@ uv sync && uv run python -m hetushu_scraper 12345
 | `--delay` / `-d` | 每次请求前等待秒数 | `0`（不限速） |
 | `--max-retries` | 失败重试次数 | `3` |
 | `--timeout` | 页面加载超时（毫秒） | `30000` |
+| `--no-cache` | 生成 EPUB 后清除缓存 | 保留缓存 |
 | `--verbose` / `-v` | 打印详细请求日志 | 关闭 |
 
 **常用组合：**`--concurrency 1 --delay 2` → 每 2 秒一章，对服务器最友好。
@@ -32,14 +33,13 @@ uv sync && uv run python -m hetushu_scraper 12345
 ## ✨ 功能一览
 
 - 🕵️ **反爬** — CloakBrowser 模拟真人，随机换 User-Agent
-- 🔁 **断点续传** — 下次重跑跳过已下载章节
+- 🔁 **断点续传** — 再次运行自动跳过已缓存章节
 - 📦 **EPUB 输出** — 带章节目录，Kindle / Apple Books / Calibre 通用
-- ⏱ **自动重试** — 失败重试 3 次，越等越久
+- ⏱ **自动重试** — 失败自动重试，越等越久
 - 🖼️ **图片 & 代码** — EPUB 内图片自适应，代码块有样式
-- 📋 **失败汇总** — 下载完告诉你哪些章节挂了
+- 📋 **失败汇总** — 失败章节会重试一次，仍失败则列出清单
 - 🪟 **Windows 没问题** — 不乱码、不崩溃
-
-> 想重新下载？删掉 `.chapter_cache/` 目录即可。
+- 🗃️ **缓存持久化** — 默认保留缓存，下次秒开；加 `--no-cache` 用完即删
 
 ---
 
@@ -55,7 +55,7 @@ uv sync && uv run python -m hetushu_scraper 12345
 
 **下载一半断了，要重来吗？**
 
-不用。再跑一次会自动跳过已缓存章节，只下载缺失的。
+不用。再跑一次会自动跳过已缓存章节，只下载缺失的。想彻底重新下载，删掉 `.chapter_cache/` 目录或加 `--no-cache`。
 
 ---
 

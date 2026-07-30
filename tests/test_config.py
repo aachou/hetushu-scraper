@@ -6,6 +6,7 @@ from hetushu_scraper.config import (
 )
 from hetushu_scraper.fetcher import fetch_chapter
 from hetushu_scraper.downloader import download_hetushu_book
+from hetushu_scraper.cli import run_cli
 
 
 class TestConfig:
@@ -57,3 +58,12 @@ class TestConfig:
     def test_download_book_accepts_delay(self):
         sig = inspect.signature(download_hetushu_book)
         assert "delay" in sig.parameters
+
+    def test_download_book_accepts_no_cache(self):
+        sig = inspect.signature(download_hetushu_book)
+        assert "no_cache" in sig.parameters
+
+    def test_no_cache_defaults_to_false(self):
+        sig = inspect.signature(download_hetushu_book)
+        param = sig.parameters["no_cache"]
+        assert param.default is False

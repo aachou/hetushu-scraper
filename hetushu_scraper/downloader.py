@@ -2,6 +2,9 @@ import asyncio
 import os
 import random
 
+from collections.abc import Sequence
+from typing import Any
+
 from ebooklib import epub
 from cloakbrowser import launch_async
 from tqdm import tqdm
@@ -12,7 +15,10 @@ from .cache import get_cached_indices, build_epub_html_from_cache, clear_cache
 from .fetcher import fetch_chapter
 
 
-async def download_hetushu_book(book_id: str, *, headless=False, output=None, max_retries=None, timeout=None, concurrency=None, delay=None, verbose=False):
+async def download_hetushu_book(book_id: str, *, headless: bool = False, output: str | None = None,
+                                max_retries: int | None = None, timeout: int | None = None,
+                                concurrency: int | None = None, delay: float | None = None,
+                                no_cache: bool = False, verbose: bool = False) -> None:
     max_retries = max_retries or MAX_RETRIES
     timeout = timeout or 30000
     concurrency = concurrency if concurrency is not None else DEFAULT_CONCURRENCY
@@ -159,7 +165,7 @@ async def download_hetushu_book(book_id: str, *, headless=False, output=None, ma
               "，开始高并发抓取...")
 
     # ---- 网络下载（并发）------------------------------------------------
-    failed_chapters = []
+    failed_chapters: list[tuple[int, str, str]] = []
     if to_fetch > 0:
         with tqdm(total=to_fetch, desc="下载进度", unit="章") as pbar:
             for coro in asyncio.as_completed(tasks):
@@ -176,7 +182,31 @@ async def download_hetushu_book(book_id: str, *, headless=False, output=None, ma
                 pbar.update(1)
 
     if failed_chapters:
-        print(f"\n⚠️ 共 {len(failed_chapters)} 章下载失败：")
+        print(f"\n⚠️ 首次下载 {len(failed_chapters)} 章失败，正在重试...")
+        retry_tasks = []
+        for idx, title, _ in failed_chapters:
+            chap_url = urljoin(base_url, next(
+                ch['href'] for vol in toc_data for ch in vol['chapters']
+                if ch.get('title') == title
+            ))
+            retry_tasks.append(
+                fetch_chapter(context, book_id, idx, title, chap_url, nav_css,
+                              sem=sem, delay=delay, max_retries=1, timeout=timeout, verbose=verbose)
+            )
+        failed_chapters.clear()
+        with tqdm(total=len(retry_tasks), desc="重试", unit="章") as pbar:
+            for coro in asyncio.as_completed(retry_tasks):
+                idx, title, epub_obj, error = await coro
+                if epub_obj:
+                    downloaded_chapters[idx] = epub_obj
+                    tqdm.write(f"  ✅ 重试成功: 第 {idx} 章「{title}」")
+                else:
+                    failed_chapters.append((idx, title, error))
+                    tqdm.write(f"❌ 重试失败: {title} - {error}")
+                pbar.update(1)
+
+    if failed_chapters:
+        print(f"\n⚠️ 共 {len(failed_chapters)} 章下载失败（已重试）：")
         for idx, title, err in failed_chapters:
             print(f"  {idx:>4}. {title} — {err}")
 
@@ -217,7 +247,8 @@ async def download_hetushu_book(book_id: str, *, headless=False, output=None, ma
 
     epub.write_epub(epub_path, book)
 
-    clear_cache(book_id)
+    if no_cache:
+        clear_cache(book_id)
     print(f"\n🎉 电子书已生成: {epub_path}")
 
     await browser.close()

@@ -1,12 +1,11 @@
 import argparse
 import asyncio
-import sys
 
 from .downloader import download_hetushu_book
 from .config import MAX_RETRIES, DEFAULT_CONCURRENCY, DEFAULT_REQUEST_DELAY
 
 
-def run_cli():
+def run_cli() -> None:
     parser = argparse.ArgumentParser(description="抓取和图书上的小说并生成 EPUB")
     parser.add_argument('book_id', nargs='?', help='书籍 ID（省略则交互式输入）')
     parser.add_argument('--headless', action='store_true', help='无头模式，不显示浏览器窗口')
@@ -17,6 +16,7 @@ def run_cli():
                         help=f'最大并发页面数（默认 {DEFAULT_CONCURRENCY}）')
     parser.add_argument('--delay', '-d', type=float, default=DEFAULT_REQUEST_DELAY,
                         help=f'每个请求前等待秒数（默认 {DEFAULT_REQUEST_DELAY}，用于控制爬取速度）')
+    parser.add_argument('--no-cache', action='store_true', help='生成 EPUB 后清除缓存')
     parser.add_argument('--verbose', '-v', action='store_true', help='启用详细日志')
 
     args = parser.parse_args()
@@ -28,9 +28,6 @@ def run_cli():
         if not args.book_id:
             return
 
-    if sys.platform.startswith('win'):
-        asyncio.set_event_loop_policy(asyncio.WindowsProactorEventLoopPolicy())
-
     asyncio.run(download_hetushu_book(
         args.book_id,
         headless=args.headless,
@@ -39,5 +36,6 @@ def run_cli():
         timeout=args.timeout,
         concurrency=args.concurrency,
         delay=args.delay,
+        no_cache=args.no_cache,
         verbose=args.verbose,
     ))

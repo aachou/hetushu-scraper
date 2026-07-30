@@ -1,4 +1,5 @@
 import asyncio
+import re
 
 from ebooklib import epub
 from tqdm import tqdm
@@ -7,10 +8,19 @@ from .config import MAX_RETRIES, RETRY_DELAY_BASE
 from .cache import save_chapter_cache
 
 
-def clean_typography(text):
-    text = text.replace('"', '\u201c').replace("'", '\u2018')
-    if text.startswith('\u201d'):
-        text = '\u201c' + text[1:]
+_RQUOT = '\u201c'
+_LQUOT = '\u2018'
+_RDQUOT = '\u201d'
+_LDQUOT = '\u2019'
+
+
+def clean_typography(text: str) -> str:
+    text = text.replace('"', _RQUOT).replace("'", _LQUOT)
+    if text.startswith(_RDQUOT):
+        text = _RQUOT + text[1:]
+    if text.startswith(_LDQUOT):
+        text = _LQUOT + text[1:]
+    text = re.sub(r'(\w)\u2014(\w)', '\\1\u2014\\2', text)
     return text
 
 
