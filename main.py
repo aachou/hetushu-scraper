@@ -1,4 +1,4 @@
 from hetushu_scraper.cli import run_cli
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     run_cli()

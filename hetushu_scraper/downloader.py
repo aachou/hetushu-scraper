@@ -10,15 +10,30 @@ from cloakbrowser import launch_async
 from tqdm import tqdm
 from urllib.parse import urljoin
 
-from .config import MAX_RETRIES, RETRY_DELAY_BASE, DEFAULT_CONCURRENCY, DEFAULT_REQUEST_DELAY, USER_AGENTS, CSS_STYLE
+from .config import (
+    MAX_RETRIES,
+    RETRY_DELAY_BASE,
+    DEFAULT_CONCURRENCY,
+    DEFAULT_REQUEST_DELAY,
+    USER_AGENTS,
+    CSS_STYLE,
+)
 from .cache import get_cached_indices, build_epub_html_from_cache, clear_cache
 from .fetcher import fetch_chapter
 
 
-async def download_hetushu_book(book_id: str, *, headless: bool = False, output: str | None = None,
-                                max_retries: int | None = None, timeout: int | None = None,
-                                concurrency: int | None = None, delay: float | None = None,
-                                no_cache: bool = False, verbose: bool = False) -> None:
+async def download_hetushu_book(
+    book_id: str,
+    *,
+    headless: bool = False,
+    output: str | None = None,
+    max_retries: int | None = None,
+    timeout: int | None = None,
+    concurrency: int | None = None,
+    delay: float | None = None,
+    no_cache: bool = False,
+    verbose: bool = False,
+) -> None:
     max_retries = max_retries or MAX_RETRIES
     timeout = timeout or 30000
     concurrency = concurrency if concurrency is not None else DEFAULT_CONCURRENCY
@@ -28,7 +43,9 @@ async def download_hetushu_book(book_id: str, *, headless: bool = False, output:
     base_url = f"https://www.hetushu.com/book/{book_id}/index.html"
     ua = random.choice(USER_AGENTS)
 
-    print(f"\n🚀 正在通过 CloakBrowser {'无头' if headless else ''}模式启动浏览器，抓取书籍 ID: {book_id}")
+    print(
+        f"\n🚀 正在通过 CloakBrowser {'无头' if headless else ''}模式启动浏览器，抓取书籍 ID: {book_id}"
+    )
     print(f"📋 本次 User-Agent: {ua[:80]}...")
 
     browser = await launch_async(headless=headless, humanize=True)
@@ -76,7 +93,7 @@ async def download_hetushu_book(book_id: str, *, headless: bool = False, output:
 
             if verbose:
                 vol_count = len(toc_data)
-                ch_count = sum(len(v['chapters']) for v in toc_data)
+                ch_count = sum(len(v["chapters"]) for v in toc_data)
                 print(f"  📖 书名: {book_title}")
                 print(f"  📑 目录: {vol_count} 卷, {ch_count} 章")
             break
@@ -84,15 +101,21 @@ async def download_hetushu_book(book_id: str, *, headless: bool = False, output:
             last_error = e
             if attempt < max_retries - 1:
                 delay = RETRY_DELAY_BASE * (attempt + 1)
-                print(f"⚠️ 首页加载失败（第 {attempt+1} 次），{delay} 秒后重试... ({e})")
+                print(
+                    f"⚠️ 首页加载失败（第 {attempt + 1} 次），{delay} 秒后重试... ({e})"
+                )
                 await asyncio.sleep(delay)
             else:
                 print(f"❌ 首页解析失败（已重试 {max_retries} 次）: {last_error}")
                 debug_dir = f"debug_{book_id}"
                 os.makedirs(debug_dir, exist_ok=True)
                 try:
-                    body_html = await page.evaluate("() => document.getElementById('dir')?.outerHTML || document.body.outerHTML")
-                    with open(f"{debug_dir}/index_page.html", "w", encoding="utf-8") as f:
+                    body_html = await page.evaluate(
+                        "() => document.getElementById('dir')?.outerHTML || document.body.outerHTML"
+                    )
+                    with open(
+                        f"{debug_dir}/index_page.html", "w", encoding="utf-8"
+                    ) as f:
                         f.write(body_html)
                     print(f"📸 页面快照已保存到 {debug_dir}/index_page.html")
                 except Exception:
@@ -109,29 +132,36 @@ async def download_hetushu_book(book_id: str, *, headless: bool = False, output:
     global_idx = 1
     for vol_data in toc_data:
         chapters_info = []
-        for ch in vol_data['chapters']:
-            title_map[global_idx] = ch['title']
-            chapters_info.append((ch['title'], global_idx))
+        for ch in vol_data["chapters"]:
+            title_map[global_idx] = ch["title"]
+            chapters_info.append((ch["title"], global_idx))
             global_idx += 1
-        toc_info.append({'volume': vol_data['volume'], 'chapters': chapters_info})
+        toc_info.append({"volume": vol_data["volume"], "chapters": chapters_info})
     total_chapters = global_idx - 1
 
     # ---- 检查断点缓存 ---------------------------------------------------
     cached_indices = get_cached_indices(book_id)
     cached_indices = {idx for idx in cached_indices if 1 <= idx <= total_chapters}
     if cached_indices:
-        print(f"📌 检测到已有缓存: {len(cached_indices)}/{total_chapters} 章（将跳过网络请求）")
+        print(
+            f"📌 检测到已有缓存: {len(cached_indices)}/{total_chapters} 章（将跳过网络请求）"
+        )
         if verbose:
             cached_list = sorted(cached_indices)
-            print(f"  📂 已缓存章节: {cached_list[:10]}{'...' if len(cached_list) > 10 else ''}")
+            print(
+                f"  📂 已缓存章节: {cached_list[:10]}{'...' if len(cached_list) > 10 else ''}"
+            )
 
     # ---- 创建 EPUB 骨架 ------------------------------------------------
     book = epub.EpubBook()
     book.set_title(book_title)
-    book.set_language('zh-CN')
+    book.set_language("zh-CN")
 
     nav_css = epub.EpubItem(
-        uid="style_nav", file_name="style/nav.css", media_type="text/css", content=CSS_STYLE
+        uid="style_nav",
+        file_name="style/nav.css",
+        media_type="text/css",
+        content=CSS_STYLE,
     )
     book.add_item(nav_css)
 
@@ -146,23 +176,38 @@ async def download_hetushu_book(book_id: str, *, headless: bool = False, output:
     tasks = []
     global_idx = 1
     for vol_data in toc_data:
-        for ch in vol_data['chapters']:
+        for ch in vol_data["chapters"]:
             if global_idx not in cached_indices:
-                chap_url = urljoin(base_url, ch['href'])
+                chap_url = urljoin(base_url, ch["href"])
                 tasks.append(
-                    fetch_chapter(context, book_id, global_idx, ch['title'], chap_url, nav_css,
-                                  sem=sem, delay=delay, max_retries=max_retries, timeout=timeout, verbose=verbose)
+                    fetch_chapter(
+                        context,
+                        book_id,
+                        global_idx,
+                        ch["title"],
+                        chap_url,
+                        nav_css,
+                        sem=sem,
+                        delay=delay,
+                        max_retries=max_retries,
+                        timeout=timeout,
+                        verbose=verbose,
+                    )
                 )
             global_idx += 1
 
     to_fetch = len(tasks)
     if to_fetch == 0:
-        print(f"📦 全部章节 ({total_chapters} 章) 均已缓存，跳过网络抓取，直接生成 EPUB")
+        print(
+            f"📦 全部章节 ({total_chapters} 章) 均已缓存，跳过网络抓取，直接生成 EPUB"
+        )
     else:
         cached_count = len(cached_indices)
-        print(f"📦 共 {total_chapters} 章，需下载 {to_fetch} 章" +
-              (f"（已缓存 {cached_count} 章）" if cached_count else "") +
-              "，开始高并发抓取...")
+        print(
+            f"📦 共 {total_chapters} 章，需下载 {to_fetch} 章"
+            + (f"（已缓存 {cached_count} 章）" if cached_count else "")
+            + "，开始高并发抓取..."
+        )
 
     # ---- 网络下载（并发）------------------------------------------------
     failed_chapters: list[tuple[int, str, str]] = []
@@ -185,13 +230,29 @@ async def download_hetushu_book(book_id: str, *, headless: bool = False, output:
         print(f"\n⚠️ 首次下载 {len(failed_chapters)} 章失败，正在重试...")
         retry_tasks = []
         for idx, title, _ in failed_chapters:
-            chap_url = urljoin(base_url, next(
-                ch['href'] for vol in toc_data for ch in vol['chapters']
-                if ch.get('title') == title
-            ))
+            chap_url = urljoin(
+                base_url,
+                next(
+                    ch["href"]
+                    for vol in toc_data
+                    for ch in vol["chapters"]
+                    if ch.get("title") == title
+                ),
+            )
             retry_tasks.append(
-                fetch_chapter(context, book_id, idx, title, chap_url, nav_css,
-                              sem=sem, delay=delay, max_retries=1, timeout=timeout, verbose=verbose)
+                fetch_chapter(
+                    context,
+                    book_id,
+                    idx,
+                    title,
+                    chap_url,
+                    nav_css,
+                    sem=sem,
+                    delay=delay,
+                    max_retries=1,
+                    timeout=timeout,
+                    verbose=verbose,
+                )
             )
         failed_chapters.clear()
         with tqdm(total=len(retry_tasks), desc="重试", unit="章") as pbar:
@@ -212,13 +273,13 @@ async def download_hetushu_book(book_id: str, *, headless: bool = False, output:
 
     # ---- 组装 EPUB -----------------------------------------------------
     epub_toc = []
-    spine = ['nav']
+    spine = ["nav"]
 
     for vol_index, item in enumerate(toc_info, start=1):
-        vol_section = epub.Section(item['volume'])
+        vol_section = epub.Section(item["volume"])
         vol_items = []
 
-        for title, idx in item['chapters']:
+        for title, idx in item["chapters"]:
             c = downloaded_chapters.get(idx)
             if c:
                 book.add_item(c)
@@ -234,10 +295,12 @@ async def download_hetushu_book(book_id: str, *, headless: bool = False, output:
     book.add_item(epub.EpubNcx())
     book.add_item(epub.EpubNav())
 
-    safe_title = "".join([c for c in book_title if c.isalnum() or c in (' ', '_', '-')]).strip()
+    safe_title = "".join(
+        [c for c in book_title if c.isalnum() or c in (" ", "_", "-")]
+    ).strip()
 
     if output:
-        if output.endswith('.epub'):
+        if output.endswith(".epub"):
             epub_path = output
         else:
             os.makedirs(output, exist_ok=True)

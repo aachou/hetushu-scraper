@@ -1,8 +1,11 @@
 import inspect
 
 from hetushu_scraper.config import (
-    CSS_STYLE, MAX_RETRIES, RETRY_DELAY_BASE,
-    DEFAULT_CONCURRENCY, DEFAULT_REQUEST_DELAY,
+    CSS_STYLE,
+    MAX_RETRIES,
+    RETRY_DELAY_BASE,
+    DEFAULT_CONCURRENCY,
+    DEFAULT_REQUEST_DELAY,
 )
 from hetushu_scraper.fetcher import fetch_chapter
 from hetushu_scraper.downloader import download_hetushu_book

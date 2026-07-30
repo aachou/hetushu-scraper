@@ -8,10 +8,10 @@ from .config import MAX_RETRIES, RETRY_DELAY_BASE
 from .cache import save_chapter_cache
 
 
-_RQUOT = '\u201c'
-_LQUOT = '\u2018'
-_RDQUOT = '\u201d'
-_LDQUOT = '\u2019'
+_RQUOT = "\u201c"
+_LQUOT = "\u2018"
+_RDQUOT = "\u201d"
+_LDQUOT = "\u2019"
 
 
 def clean_typography(text: str) -> str:
@@ -20,7 +20,7 @@ def clean_typography(text: str) -> str:
         text = _RQUOT + text[1:]
     if text.startswith(_LDQUOT):
         text = _LQUOT + text[1:]
-    text = re.sub(r'(\w)\u2014(\w)', '\\1\u2014\\2', text)
+    text = re.sub(r"(\w)\u2014(\w)", "\\1\u2014\\2", text)
     return text
 
 
@@ -31,8 +31,20 @@ async def intercept_route(route):
         await route.continue_()
 
 
-async def fetch_chapter(context, book_id, global_idx, chap_title, chap_url, nav_css,
-                        *, sem, delay=0, max_retries=None, timeout=None, verbose=False):
+async def fetch_chapter(
+    context,
+    book_id,
+    global_idx,
+    chap_title,
+    chap_url,
+    nav_css,
+    *,
+    sem,
+    delay=0,
+    max_retries=None,
+    timeout=None,
+    verbose=False,
+):
     max_retries = max_retries or MAX_RETRIES
     timeout = timeout or 30000
     selector_timeout = int(timeout * 2 / 3)
@@ -57,14 +69,20 @@ async def fetch_chapter(context, book_id, global_idx, chap_title, chap_url, nav_
                     return content.innerText;
                 }""")
 
-                raw_paragraphs = [p.strip() for p in text_content.split('\n') if p.strip()]
+                raw_paragraphs = [
+                    p.strip() for p in text_content.split("\n") if p.strip()
+                ]
                 clean_paragraphs = [clean_typography(p) for p in raw_paragraphs]
-                final_paragraphs = clean_paragraphs[2:] if len(clean_paragraphs) > 2 else clean_paragraphs
+                final_paragraphs = (
+                    clean_paragraphs[2:]
+                    if len(clean_paragraphs) > 2
+                    else clean_paragraphs
+                )
 
                 html_content = "".join([f"<p>{p}</p>" for p in final_paragraphs])
 
                 file_name = f"chapter_{global_idx}.xhtml"
-                c = epub.EpubHtml(title=chap_title, file_name=file_name, lang='zh-CN')
+                c = epub.EpubHtml(title=chap_title, file_name=file_name, lang="zh-CN")
                 c.content = f"<h2>{chap_title}</h2>{html_content}"
                 c.add_item(nav_css)
 
@@ -76,7 +94,7 @@ async def fetch_chapter(context, book_id, global_idx, chap_title, chap_url, nav_
                     retry_delay = RETRY_DELAY_BASE * (attempt + 1)
                     tqdm.write(
                         f"⚠️ 第 {global_idx} 章「{chap_title}」下载失败，"
-                        f"{retry_delay} 秒后重试 ({attempt+1}/{max_retries})... {e}"
+                        f"{retry_delay} 秒后重试 ({attempt + 1}/{max_retries})... {e}"
                     )
                     await asyncio.sleep(retry_delay)
                 else:

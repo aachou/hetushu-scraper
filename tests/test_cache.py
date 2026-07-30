@@ -15,7 +15,10 @@ from hetushu_scraper.config import CSS_STYLE
 
 def _make_nav_css():
     return epub.EpubItem(
-        uid="style_nav", file_name="style/nav.css", media_type="text/css", content=CSS_STYLE
+        uid="style_nav",
+        file_name="style/nav.css",
+        media_type="text/css",
+        content=CSS_STYLE,
     )
 
 
@@ -55,6 +58,7 @@ class TestCache:
 
     def test_build_corrupted_cache_removes_file(self, patch_cache_dir):
         from hetushu_scraper import config as cfg
+
         book_id = "test_book"
         obj_path = os.path.join(cfg.CACHE_DIR, book_id, "1.json")
         os.makedirs(os.path.dirname(obj_path), exist_ok=True)

@@ -9,7 +9,10 @@ from hetushu_scraper.config import CSS_STYLE
 
 def _nav_css():
     return epub.EpubItem(
-        uid="style_nav", file_name="style/nav.css", media_type="text/css", content=CSS_STYLE
+        uid="style_nav",
+        file_name="style/nav.css",
+        media_type="text/css",
+        content=CSS_STYLE,
     )
 
 
