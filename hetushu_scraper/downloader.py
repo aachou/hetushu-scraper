@@ -184,7 +184,7 @@ async def download_hetushu_book(book_id: str, *, headless=False, output=None, ma
     epub_toc = []
     spine = ['nav']
 
-    for item in toc_info:
+    for vol_index, item in enumerate(toc_info, start=1):
         vol_section = epub.Section(item['volume'])
         vol_items = []
 
@@ -196,7 +196,7 @@ async def download_hetushu_book(book_id: str, *, headless=False, output=None, ma
                 vol_items.append(c)
 
         if vol_items:
-            vol_section.href = vol_items[0].file_name
+            vol_section.href = f"{vol_items[0].file_name}#v{vol_index}"
             epub_toc.append((vol_section, vol_items))
 
     book.toc = epub_toc
