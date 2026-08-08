@@ -25,7 +25,7 @@ from .fetcher import fetch_chapter
 async def download_hetushu_book(
     book_id: str,
     *,
-    headless: bool = False,
+    headless: bool = True,
     output: str | None = None,
     max_retries: int | None = None,
     timeout: int | None = None,

@@ -9,7 +9,7 @@ def run_cli() -> None:
     parser = argparse.ArgumentParser(description="抓取和图书上的小说并生成 EPUB")
     parser.add_argument("book_id", nargs="?", help="书籍 ID（省略则交互式输入）")
     parser.add_argument(
-        "--headless", action="store_true", help="无头模式，不显示浏览器窗口"
+        "--headed", action="store_true", help="显示浏览器窗口（默认无头）"
     )
     parser.add_argument(
         "--output", "-o", default=None, help="EPUB 输出路径（目录或 .epub 文件路径）"
@@ -52,7 +52,7 @@ def run_cli() -> None:
     asyncio.run(
         download_hetushu_book(
             args.book_id,
-            headless=args.headless,
+            headless=not args.headed,
             output=args.output,
             max_retries=args.max_retries,
             timeout=args.timeout,
