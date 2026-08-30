@@ -45,9 +45,14 @@ class TestConfig:
         assert isinstance(DEFAULT_REQUEST_DELAY, (int, float))
         assert DEFAULT_REQUEST_DELAY >= 0
 
-    def test_fetch_chapter_accepts_sem(self):
+    def test_fetch_chapter_accepts_page(self):
         sig = inspect.signature(fetch_chapter)
-        assert "sem" in sig.parameters
+        assert "page" in sig.parameters
+
+    def test_fetch_chapter_accepts_use_cache(self):
+        sig = inspect.signature(fetch_chapter)
+        assert "use_cache" in sig.parameters
+        assert sig.parameters["use_cache"].default is True
 
     def test_fetch_chapter_accepts_delay(self):
         sig = inspect.signature(fetch_chapter)

@@ -1,11 +1,11 @@
 [project]
 name = "hetushu-scraper"
-version = "0.5.0"
+version = "0.6.0"
 description = "抓取和图书网站上的小说并生成 epub 电子书。"
 readme = "README.md"
 requires-python = ">=3.14"
 dependencies = [
-    "cloakbrowser>=0.5.6",
+    "cloakbrowser>=0.5.10",
     "ebooklib>=0.20",
     "tqdm>=4.68.2",
 ]

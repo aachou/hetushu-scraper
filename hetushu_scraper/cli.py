@@ -37,7 +37,11 @@ def run_cli() -> None:
         default=DEFAULT_REQUEST_DELAY,
         help=f"每个请求前等待秒数（默认 {DEFAULT_REQUEST_DELAY}，用于控制爬取速度）",
     )
-    parser.add_argument("--no-cache", action="store_true", help="生成 EPUB 后清除缓存")
+    parser.add_argument(
+        "--no-cache",
+        action="store_true",
+        help="忽略已有缓存并重新下载，生成 EPUB 后清除缓存",
+    )
     parser.add_argument("--verbose", "-v", action="store_true", help="启用详细日志")
 
     args = parser.parse_args()
@@ -49,16 +53,21 @@ def run_cli() -> None:
         if not args.book_id:
             return
 
-    asyncio.run(
-        download_hetushu_book(
-            args.book_id,
-            headless=not args.headed,
-            output=args.output,
-            max_retries=args.max_retries,
-            timeout=args.timeout,
-            concurrency=args.concurrency,
-            delay=args.delay,
-            no_cache=args.no_cache,
-            verbose=args.verbose,
+    try:
+        asyncio.run(
+            download_hetushu_book(
+                args.book_id,
+                headless=not args.headed,
+                output=args.output,
+                max_retries=args.max_retries,
+                timeout=args.timeout,
+                concurrency=args.concurrency,
+                delay=args.delay,
+                no_cache=args.no_cache,
+                verbose=args.verbose,
+            )
         )
-    )
+    except KeyboardInterrupt:
+        print(
+            "\n⚠️ 已中断。已下载章节会保留在缓存中，下次运行将断点续传。"
+        )

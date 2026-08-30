@@ -6,6 +6,33 @@ MAX_RETRIES: Final[int] = 3
 RETRY_DELAY_BASE: Final[int] = 2
 CACHE_DIR: Final[str] = ".chapter_cache"
 
+SPAM_TAGS: Final[tuple[str, ...]] = (
+    "code",
+    "kbd",
+    "samp",
+    "tt",
+    "var",
+    "dfn",
+    "cite",
+    "big",
+    "acronym",
+    "s",
+    "q",
+    "u",
+    "bdo",
+    "del",
+    "ins",
+    "sub",
+    "sup",
+    "center",
+    "font",
+    "strike",
+    "nobr",
+    "marquee",
+    "mark",
+    "small",
+)
+
 CSS_STYLE = """
     p { text-indent: 2em; margin-bottom: 0.5em; line-height: 1.6; }
     img { max-width: 100%; height: auto; display: block; margin: 1em auto; }

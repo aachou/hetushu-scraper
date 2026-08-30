@@ -44,7 +44,7 @@ def build_epub_html_from_cache(book_id: str, idx: int, nav_css) -> epub.EpubHtml
         c.content = data["content"]
         c.add_item(nav_css)
         return c
-    except json.JSONDecodeError, KeyError, TypeError:
+    except (json.JSONDecodeError, KeyError, TypeError):
         try:
             os.remove(path)
         except OSError:

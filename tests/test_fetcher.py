@@ -1,10 +1,11 @@
 import pytest
 
+from hetushu_scraper.config import SPAM_TAGS
 from hetushu_scraper.fetcher import (
+    _build_extract_js,
     clean_typography,
     decode_order_token,
     reorder_paragraphs,
-    strip_paragraph_spam,
 )
 
 
@@ -92,31 +93,127 @@ class TestReorderParagraphs:
             reorder_paragraphs(["a", "b", "c"], TOKEN)
 
 
-class TestStripParagraphSpam:
-    def test_removes_var_junk(self):
-        assert strip_paragraph_spam("我听说<var>https://m.hetushu.com.com</var>族比") == (
-            "我听说族比"
+class TestExtractJs:
+    def test_embeds_all_spam_tags(self):
+        js = _build_extract_js()
+        for tag in SPAM_TAGS:
+            assert tag in js
+        assert "querySelectorAll" in js
+        assert "textContent" in js
+        assert "mask" in js
+
+    def test_returns_empty_when_no_content(self):
+        js = _build_extract_js()
+        assert "if (!content) return [];" in js
+
+
+class _FakePage:
+    def __init__(self, paragraphs, token="", fail_gotos=0):
+        self._paras = paragraphs
+        self._token = token
+        self._fail = fail_gotos
+        self.goto_calls = 0
+
+    async def goto(self, *args, **kwargs):
+        self.goto_calls += 1
+        if self.goto_calls <= self._fail:
+            raise TimeoutError("simulated navigation failure")
+
+    async def wait_for_selector(self, *args, **kwargs):
+        pass
+
+    async def wait_for_function(self, *args, **kwargs):
+        pass
+
+    async def evaluate(self, js, *args):
+        if "getElementById('content')" in js:
+            return self._paras
+        if "fetch('r" in js:
+            return self._token
+        return None
+
+
+def _nav_css():
+    from ebooklib import epub
+
+    from hetushu_scraper.config import CSS_STYLE
+
+    return epub.EpubItem(
+        uid="style_nav",
+        file_name="style/nav.css",
+        media_type="text/css",
+        content=CSS_STYLE,
+    )
+
+
+class TestFetchChapter:
+    def _run(self, page, *args, **kwargs):
+        import asyncio
+
+        from hetushu_scraper.fetcher import fetch_chapter
+
+        return asyncio.run(
+            fetch_chapter(
+                page,
+                "42",
+                1,
+                "第一章",
+                "https://www.hetushu.com/book/42/1.html",
+                _nav_css(),
+                *args,
+                **kwargs,
+            )
         )
 
-    def test_removes_dfn_junk(self):
-        assert strip_paragraph_spam("前者……<dfn>hetｕshu.ｃｏｍ•coｍ</dfn>") == "前者……"
+    def test_retries_then_succeeds(self, monkeypatch, patch_cache_dir):
+        import asyncio
 
-    def test_removes_tt_junk(self):
-        assert strip_paragraph_spam("那仅<tt>m.hetushu.com.com</tt>仅只是") == "那仅仅只是"
+        from hetushu_scraper import fetcher
 
-    def test_removes_samp_junk(self):
-        assert strip_paragraph_spam("呼~呼<samp>和*图*书</samp>~") == "呼~呼~"
+        async def _no_sleep(_):
+            pass
 
-    def test_removes_code_junk(self):
-        assert strip_paragraph_spam("前面<code>www.hetushu.com.com</code>后面") == (
-            "前面后面"
-        )
+        monkeypatch.setattr(fetcher.asyncio, "sleep", _no_sleep)
+        page = _FakePage(["第一段", "第二段"], fail_gotos=1)
+        idx, title, c, err = self._run(page, max_retries=2)
+        assert err is None
+        assert c is not None
+        assert page.goto_calls == 2
+        assert "<p>第一段</p>" in c.content
 
-    def test_removes_obscured_url_junk(self):
-        assert strip_paragraph_spam("外<samp>ｈｅｔushu•ｃoｍ.com</samp>族") == "外族"
+    def test_gives_up_after_max_retries(self, monkeypatch, patch_cache_dir):
+        import asyncio
 
-    def test_plain_text_passes_through(self):
-        assert strip_paragraph_spam("普通文本") == "普通文本"
+        from hetushu_scraper import fetcher
 
-    def test_empty_fragment(self):
-        assert strip_paragraph_spam("") == ""
+        async def _no_sleep(_):
+            pass
+
+        monkeypatch.setattr(fetcher.asyncio, "sleep", _no_sleep)
+        page = _FakePage(["第一段"], fail_gotos=3)
+        idx, title, c, err = self._run(page, max_retries=2)
+        assert c is None
+        assert err is not None
+        assert page.goto_calls == 2
+
+    def test_keeps_scrambled_order_on_reorder_failure(self, patch_cache_dir):
+        page = _FakePage(["第二段", "第一段"], token="SGVsbG8=")
+        idx, title, c, err = self._run(page, max_retries=1)
+        assert err is None
+        assert c is not None
+        assert "<p>第二段</p>" in c.content
+        assert "<p>第一段</p>" in c.content
+
+    def test_saves_cache_by_default(self, patch_cache_dir):
+        from hetushu_scraper.cache import get_cached_indices
+
+        page = _FakePage(["第一段"])
+        self._run(page, max_retries=1)
+        assert get_cached_indices("42") == {1}
+
+    def test_no_cache_skips_save(self, patch_cache_dir):
+        from hetushu_scraper.cache import get_cached_indices
+
+        page = _FakePage(["第一段"])
+        self._run(page, max_retries=1, use_cache=False)
+        assert get_cached_indices("42") == set()

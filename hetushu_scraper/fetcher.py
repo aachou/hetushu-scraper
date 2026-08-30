@@ -1,12 +1,11 @@
 import asyncio
 import base64
 import re
-from html import unescape
 
 from ebooklib import epub
 from tqdm import tqdm
 
-from .config import MAX_RETRIES, RETRY_DELAY_BASE
+from .config import MAX_RETRIES, RETRY_DELAY_BASE, SPAM_TAGS
 from .cache import save_chapter_cache
 
 
@@ -14,12 +13,6 @@ _RQUOT = "\u201c"
 _LQUOT = "\u2018"
 _RDQUOT = "\u201d"
 _LDQUOT = "\u2019"
-
-_SPAM_ELEM_RE = re.compile(
-    r"<(?:code|kbd|samp|tt|var|dfn|cite|big|acronym|s|q|u|bdo|del|ins|sub|sup|center|font|strike|nobr|marquee|mark|small)\b[^>]*>.*?</(?:code|kbd|samp|tt|var|dfn|cite|big|acronym|s|q|u|bdo|del|ins|sub|sup|center|font|strike|nobr|marquee|mark|small)>",
-    re.S,
-)
-_TAG_RE = re.compile(r"<[^>]+>")
 
 
 def clean_typography(text: str) -> str:
@@ -63,16 +56,30 @@ def reorder_paragraphs(paragraphs: list[str], token: str) -> list[str]:
     return [paragraphs[child_node[k]] for k in sorted(child_node)]
 
 
-def strip_paragraph_spam(html_fragment: str) -> str:
-    """Remove injected junk (fake URLs/watermarks) and leftover tags.
+def _build_extract_js() -> str:
+    spam_selector = ",".join(SPAM_TAGS)
+    return f"""
+() => {{
+    const content = document.getElementById('content');
+    if (!content) return [];
+    const paras = [];
+    for (const node of content.childNodes) {{
+        if (node.nodeType !== 1) continue;
+        if (node.tagName === 'H2') continue;
+        if (node.classList && node.classList.contains('mask')) continue;
+        if (node.tagName !== 'DIV') continue;
+        const clone = node.cloneNode(true);
+        if ('{spam_selector}') {{
+            for (const el of clone.querySelectorAll('{spam_selector}')) el.remove();
+        }}
+        paras.push(clone.textContent.trim());
+    }}
+    return paras;
+}}
+"""
 
-    The site wraps spam in a random legacy element per chapter
-    (``<var>``/``<dfn>``/``<code>``/``<kbd>``/``<samp>``/``<tt>``/...), so
-    the whole element including its content is dropped before tag stripping.
-    """
-    text = _SPAM_ELEM_RE.sub("", html_fragment)
-    text = _TAG_RE.sub("", text)
-    return unescape(text).strip()
+
+_EXTRACT_JS = _build_extract_js()
 
 
 async def intercept_route(route):
@@ -85,106 +92,86 @@ async def intercept_route(route):
 
 
 async def fetch_chapter(
-    context,
+    page,
     book_id,
     global_idx,
     chap_title,
     chap_url,
     nav_css,
     *,
-    sem,
     delay=0,
     max_retries=None,
     timeout=None,
     verbose=False,
+    use_cache=True,
 ):
-    max_retries = max_retries or MAX_RETRIES
-    timeout = timeout or 30000
+    max_retries = MAX_RETRIES if max_retries is None else max_retries
+    timeout = 30000 if timeout is None else timeout
     selector_timeout = int(timeout * 2 / 3)
 
     sid_match = re.search(r"/(\d+)\.html", chap_url)
     sid = sid_match.group(1) if sid_match else ""
 
     for attempt in range(max_retries):
-        async with sem:
-            if delay:
-                await asyncio.sleep(delay)
-            page = None
+        if delay:
+            await asyncio.sleep(delay)
+        try:
+            if verbose:
+                tqdm.write(f"  📄 请求第 {global_idx} 章: {chap_title}")
+            await page.goto(chap_url, timeout=timeout)
+            await page.wait_for_selector("#content", timeout=selector_timeout)
             try:
-                if verbose:
-                    tqdm.write(f"  📄 请求第 {global_idx} 章: {chap_title}")
-                page = await context.new_page()
-                await page.route("**/*", intercept_route)
-                await page.goto(chap_url, timeout=timeout)
-                await page.wait_for_selector("#content", timeout=selector_timeout)
-                await page.wait_for_timeout(1000)
-
-                # section.js is blocked, so #content keeps the scrambled order.
-                raw_html_paragraphs = await page.evaluate(
-                    """() => {
-                        const content = document.getElementById('content');
-                        if (!content) return [];
-                        const paras = [];
-                        for (const node of content.childNodes) {
-                            if (node.nodeType !== 1) continue;
-                            if (node.tagName === 'H2') continue;
-                            if (node.classList && node.classList.contains('mask')) continue;
-                            if (node.tagName === 'DIV') paras.push(node.innerHTML);
-                        }
-                        return paras;
-                    }"""
+                await page.wait_for_function(
+                    "() => { const c = document.getElementById('content'); return c && c.children.length > 0; }",
+                    timeout=selector_timeout,
                 )
+            except Exception:
+                pass
 
-                scrambled = [strip_paragraph_spam(p) for p in raw_html_paragraphs]
+            paragraphs = await page.evaluate(_EXTRACT_JS)
 
-                ordered = scrambled
-                if sid and scrambled:
-                    try:
-                        token = await page.evaluate(
-                            """async (sid) => {
-                                const resp = await fetch('r' + sid + '.json?_=' + Date.now(), {
-                                    headers: { 'X-Requested-With': 'XMLHttpRequest' }
-                                });
-                                if (resp.status === 200) {
-                                    return await resp.text();
-                                }
-                                return resp.headers.get('token') || '';
-                            }""",
-                            sid,
+            ordered = paragraphs
+            if sid and paragraphs:
+                try:
+                    token = await page.evaluate(
+                        """async (sid) => {
+                            const resp = await fetch('r' + sid + '.json?_=' + Date.now(), {
+                                headers: { 'X-Requested-With': 'XMLHttpRequest' }
+                            });
+                            if (resp.status === 200) {
+                                return await resp.text();
+                            }
+                            return resp.headers.get('token') || '';
+                        }""",
+                        sid,
+                    )
+                    if token:
+                        ordered = reorder_paragraphs(paragraphs, token)
+                except Exception as e:
+                    if verbose:
+                        tqdm.write(
+                            f"  ⚠️ 第 {global_idx} 章重排失败，保留原始顺序: {e}"
                         )
-                        if token:
-                            ordered = reorder_paragraphs(scrambled, token)
-                    except Exception as e:
-                        if verbose:
-                            tqdm.write(
-                                f"  ⚠️ 第 {global_idx} 章重排失败，保留原始顺序: {e}"
-                            )
 
-                clean_paragraphs = [clean_typography(p) for p in ordered]
-                final_paragraphs = clean_paragraphs
+            final_paragraphs = [clean_typography(p) for p in ordered]
+            html_content = "".join([f"<p>{p}</p>" for p in final_paragraphs])
 
-                html_content = "".join([f"<p>{p}</p>" for p in final_paragraphs])
+            file_name = f"chapter_{global_idx}.xhtml"
+            c = epub.EpubHtml(title=chap_title, file_name=file_name, lang="zh-CN")
+            c.content = f"<h2>{chap_title}</h2>{html_content}"
+            c.add_item(nav_css)
 
-                file_name = f"chapter_{global_idx}.xhtml"
-                c = epub.EpubHtml(title=chap_title, file_name=file_name, lang="zh-CN")
-                c.content = f"<h2>{chap_title}</h2>{html_content}"
-                c.add_item(nav_css)
-
+            if use_cache:
                 save_chapter_cache(book_id, global_idx, chap_title, c.content)
 
-                return global_idx, chap_title, c, None
-            except Exception as e:
-                if attempt < max_retries - 1:
-                    retry_delay = RETRY_DELAY_BASE * (attempt + 1)
-                    tqdm.write(
-                        f"⚠️ 第 {global_idx} 章「{chap_title}」下载失败，"
-                        f"{retry_delay} 秒后重试 ({attempt + 1}/{max_retries})... {e}"
-                    )
-                    await asyncio.sleep(retry_delay)
-                else:
-                    return global_idx, chap_title, None, str(e)
-            finally:
-                if page:
-                    await page.close()
-
-    return global_idx, chap_title, None, "Unknown error"
+            return global_idx, chap_title, c, None
+        except Exception as e:
+            if attempt < max_retries - 1:
+                retry_delay = RETRY_DELAY_BASE * (attempt + 1)
+                tqdm.write(
+                    f"⚠️ 第 {global_idx} 章「{chap_title}」下载失败，"
+                    f"{retry_delay} 秒后重试 ({attempt + 1}/{max_retries})... {e}"
+                )
+                await asyncio.sleep(retry_delay)
+            else:
+                return global_idx, chap_title, None, str(e)
