@@ -4,7 +4,7 @@
 
 - **Python >=3.14** required (`pyproject.toml` enforces this).
 - Package manager: **uv** (`uv sync`, `uv lock`, `uv run`). No pip-based workflow.
-- **Tests**: `uv run pytest` (67 tests covering config, cache, fetcher, downloader, epub). Uses `tmp_path` + `monkeypatch` for cache isolation.
+- **Tests**: `uv run pytest` (70 tests covering config, cache, fetcher, downloader, epub). Uses `tmp_path` + `monkeypatch` for cache isolation.
 
 ## Run
 
@@ -18,6 +18,7 @@ uv run main.py 12345 --timeout 60000         # longer page timeout
 uv run main.py 12345 --concurrency 4         # limit concurrent pages
 uv run main.py 12345 --delay 1.5             # wait 1.5s between requests
 uv run main.py 12345 --verbose               # detailed request/response logs
+uv run main.py 12345 67890 11111             # multiple book IDs, downloaded serially
 ```
 
 ## Architecture
@@ -26,12 +27,13 @@ uv run main.py 12345 --verbose               # detailed request/response logs
   - `config.py` — constants (retry limits, concurrency, UA pool, CSS)
   - `cache.py` — disk cache system (atomic writes, corrupt detection)
   - `fetcher.py` — `fetch_chapter()` + `clean_typography()` + `reorder_paragraphs()`
-  - `downloader.py` — `download_hetushu_book()` + `build_toc()` / `plan_fetch()` / `assemble_epub()` helpers
+  - `downloader.py` — `download_hetushu_book()` / `download_books()` + `build_toc()` / `plan_fetch()` / `assemble_epub()` helpers
   - `cli.py` — `run_cli()`
 - **Entry point**: `main.py` (root file)
   - Root `main.py` does `from hetushu_scraper.cli import run_cli`.
 - **CloakBrowser** (not raw Playwright) wraps Chromium; `headless=True` default, `humanize=True`. First run downloads ~200MB Chromium silently.
 - **Page pool**: concurrency (default 8, via `--concurrency`) is implemented as a pool of `min(concurrency, chapters_to_fetch)` browser pages, each driven by an `asyncio.Queue` worker; each page lives in its own context with a random User-Agent. `fetch_chapter()` receives a ready-made `page` (no per-chapter `new_page`/`close`). Rate limiting via `--delay` (seconds per request, default 0). Retries: each chapter retries `--max-retries` times inside `fetch_chapter`, then failed chapters get one outer retry pass at `max_retries=1` reusing the pool.
+- **Multi-book**: `download_books()` accepts several book IDs and processes them strictly serially reusing ONE browser instance; `download_hetushu_book()` is a single-book wrapper delegating to it. Multiple books + `--output` ending in `.epub` is rejected (would overwrite).
 - **Cache** at `.chapter_cache/{book_id}/{idx}.json` (atomic writes via `.tmp`+`os.replace`). Delete dir to force full redownload. `--no-cache` ignores existing cache (full redownload), skips writing new cache, and clears the dir after EPUB generation.
 - **Windows fix**: `hetushu_scraper/__init__.py` forces UTF-8 on stdout/stderr via `reconfigure()`; skips when `PYTEST_VERSION` is set.
 - **Python 3.14+ quirk**: `try/finally` wrapping a `for` loop with a nested `try/except/finally` (that has `break` + `return`) triggers a SyntaxError. The homepage retry loop was restructured to put the `for` loop outside the outer `try` to avoid this.

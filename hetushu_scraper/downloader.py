@@ -3,6 +3,8 @@ import os
 import random
 import time
 
+from collections.abc import Sequence
+
 from ebooklib import epub
 from cloakbrowser import launch_async
 from tqdm import tqdm
@@ -95,7 +97,9 @@ def assemble_epub(
     book.toc = epub_toc
     book.spine = spine
     book.add_item(epub.EpubNcx())
-    book.add_item(epub.EpubNav())
+    nav = epub.EpubNav()
+    nav.add_link(href=nav_css.file_name, rel="stylesheet", type="text/css")
+    book.add_item(nav)
     return book
 
 
@@ -385,33 +389,63 @@ async def download_hetushu_book(
     no_cache: bool = False,
     verbose: bool = False,
 ) -> None:
+    await download_books(
+        [book_id],
+        headless=headless,
+        output=output,
+        max_retries=max_retries,
+        timeout=timeout,
+        concurrency=concurrency,
+        delay=delay,
+        no_cache=no_cache,
+        verbose=verbose,
+    )
+
+
+async def download_books(
+    book_ids: Sequence[str],
+    *,
+    headless: bool = True,
+    output: str | None = None,
+    max_retries: int | None = None,
+    timeout: int | None = None,
+    concurrency: int | None = None,
+    delay: float | None = None,
+    no_cache: bool = False,
+    verbose: bool = False,
+) -> None:
+    if len(book_ids) > 1 and output and output.endswith(".epub"):
+        raise ValueError("多本书下载时 --output 必须是目录，不能是 .epub 文件路径")
+
     max_retries = MAX_RETRIES if max_retries is None else max_retries
     timeout = 30000 if timeout is None else timeout
     concurrency = DEFAULT_CONCURRENCY if concurrency is None else concurrency
     delay = DEFAULT_REQUEST_DELAY if delay is None else delay
     use_cache = not no_cache
 
-    base_url = f"https://www.hetushu.com/book/{book_id}/index.html"
-
     print(
-        f"\n🚀 正在通过 CloakBrowser {'无头' if headless else ''}模式启动浏览器，抓取书籍 ID: {book_id}"
+        f"\n🚀 正在通过 CloakBrowser {'无头' if headless else ''}模式启动浏览器，"
+        f"共 {len(book_ids)} 本书，串行下载..."
     )
     if verbose:
         print(f"  🖥️ 浏览器已启动，headless={headless}")
 
     browser = await launch_async(headless=headless, humanize=True)
     try:
-        await _run_pipeline(
-            browser,
-            book_id,
-            output,
-            base_url,
-            max_retries=max_retries,
-            timeout=timeout,
-            concurrency=concurrency,
-            delay=delay,
-            use_cache=use_cache,
-            verbose=verbose,
-        )
+        for i, book_id in enumerate(book_ids, start=1):
+            print(f"\n📚 第 {i}/{len(book_ids)} 本 — 书籍 ID: {book_id}")
+            base_url = f"https://www.hetushu.com/book/{book_id}/index.html"
+            await _run_pipeline(
+                browser,
+                book_id,
+                output,
+                base_url,
+                max_retries=max_retries,
+                timeout=timeout,
+                concurrency=concurrency,
+                delay=delay,
+                use_cache=use_cache,
+                verbose=verbose,
+            )
     finally:
         await browser.close()

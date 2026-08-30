@@ -12,6 +12,7 @@ from hetushu_scraper.downloader import (
     build_toc,
     plan_fetch,
     download_hetushu_book,
+    download_books,
 )
 
 
@@ -101,6 +102,38 @@ class TestAssembleEpub:
         assert self._spine_files(book) == ["chapter_2.xhtml"]
         assert len(book.toc) == 1
 
+    def test_nav_suppresses_list_numbers_keeps_hierarchy(self, tmp_path):
+        import zipfile
+
+        from pathlib import Path
+
+        assert "list-style-type: none" in CSS_STYLE
+        assert "nav#id > ol" in CSS_STYLE
+
+        toc_info, _ = build_toc(TOC_DATA, "https://x/")
+        chapters = {
+            1: self._chapter(1, "第一章"),
+            2: self._chapter(2, "第二章"),
+            3: self._chapter(3, "第三章"),
+        }
+        book = assemble_epub("测试书", toc_info, chapters, self._nav_css())
+        epub_path = Path(tmp_path / "test_nav.epub")
+        epub.write_epub(str(epub_path), book)
+
+        with zipfile.ZipFile(str(epub_path)) as zf:
+            names = zf.namelist()
+            nav_name = next(n for n in names if n.endswith("nav.xhtml"))
+            nav_data = zf.read(nav_name).decode("utf-8")
+            css_name = next(n for n in names if n.endswith("style/nav.css"))
+            css_data = zf.read(css_name).decode("utf-8")
+
+        assert 'rel="stylesheet"' in nav_data
+        assert "style/nav.css" in nav_data
+        assert nav_data.count("<ol") >= 3
+        assert nav_data.count("</ol>") == nav_data.count("<ol")
+        assert "list-style-type: none" in css_data
+        assert "nav#id > ol" in css_data
+
 
 class FakePage:
     def __init__(self, browser, toc_data, paragraphs, token=""):
@@ -115,6 +148,7 @@ class FakePage:
     async def goto(self, url, **kwargs):
         self._browser.goto_count += 1
         self._browser.goto_by_url[url] = self._browser.goto_by_url.get(url, 0) + 1
+        self._browser.last_goto_url = url
         for frag, remaining in self._browser.fail_urls.items():
             if frag in url and remaining > 0:
                 self._browser.fail_urls[frag] -= 1
@@ -130,7 +164,10 @@ class FakePage:
         if "getElementById('content')" in js:
             return self._paras
         if "querySelector('h2')" in js:
-            return "测试书名"
+            import re
+
+            m = re.search(r"/book/([^/]+)/", self._browser.last_goto_url or "")
+            return f"书名{m.group(1) if m else '未知'}"
         if "querySelectorAll('dt, dd')" in js:
             return self._toc
         if "fetch('r" in js:
@@ -166,6 +203,7 @@ class FakeBrowser:
         self.fail_urls = fail_urls or {}
         self.goto_count = 0
         self.goto_by_url: dict[str, int] = {}
+        self.last_goto_url: str | None = None
 
     async def new_context(self, **kwargs):
         return FakeContext(self, self._toc, self._paras, self._token)
@@ -320,3 +358,27 @@ class TestDownloadPipeline:
         snapshot = tmp_path / "debug_42" / "index_page.html"
         assert snapshot.exists()
         assert "加载失败现场" in snapshot.read_text(encoding="utf-8")
+
+    def test_download_books_serial(self, tmp_path, monkeypatch, patch_cache_dir):
+        browser = FakeBrowser(TOC_DATA, ["第一段。", "第二段。"])
+        monkeypatch.setattr(downloader, "launch_async", _make_launch(browser))
+        out = str(tmp_path / "out")
+        asyncio.run(
+            download_books(["42", "43"], output=out, concurrency=2, max_retries=1)
+        )
+        epubs = sorted(_epub_in(out))
+        assert epubs == ["书名42.epub", "书名43.epub"]
+        assert get_cached_indices("42") == {1, 2, 3}
+        assert get_cached_indices("43") == {1, 2, 3}
+        assert browser.goto_count == 8
+
+    def test_download_books_rejects_epub_output(self, monkeypatch, patch_cache_dir):
+        import pytest
+
+        browser = FakeBrowser(TOC_DATA, ["第一段。"])
+        monkeypatch.setattr(downloader, "launch_async", _make_launch(browser))
+        with pytest.raises(ValueError):
+            asyncio.run(
+                download_books(["42", "43"], output="out.epub", concurrency=2)
+            )
+        assert browser.goto_count == 0

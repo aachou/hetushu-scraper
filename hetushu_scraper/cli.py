@@ -1,13 +1,17 @@
 import argparse
 import asyncio
 
-from .downloader import download_hetushu_book
+from .downloader import download_books
 from .config import MAX_RETRIES, DEFAULT_CONCURRENCY, DEFAULT_REQUEST_DELAY
 
 
 def run_cli() -> None:
     parser = argparse.ArgumentParser(description="抓取和图书上的小说并生成 EPUB")
-    parser.add_argument("book_id", nargs="?", help="书籍 ID（省略则交互式输入）")
+    parser.add_argument(
+        "book_id",
+        nargs="*",
+        help="书籍 ID，可多个（空格分隔）；省略则交互式输入",
+    )
     parser.add_argument(
         "--headed", action="store_true", help="显示浏览器窗口（默认无头）"
     )
@@ -46,17 +50,19 @@ def run_cli() -> None:
 
     args = parser.parse_args()
 
-    if not args.book_id:
+    book_ids = args.book_id
+    if not book_ids:
         parser.print_help()
         print()
-        args.book_id = input("请输入书籍 ID: ").strip()
-        if not args.book_id:
+        book_id = input("请输入书籍 ID: ").strip()
+        if not book_id:
             return
+        book_ids = [book_id]
 
     try:
         asyncio.run(
-            download_hetushu_book(
-                args.book_id,
+            download_books(
+                book_ids,
                 headless=not args.headed,
                 output=args.output,
                 max_retries=args.max_retries,

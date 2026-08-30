@@ -39,6 +39,9 @@ CSS_STYLE = """
     pre { background: #f5f5f5; padding: 1em; border-radius: 4px; overflow-x: auto; font-size: 0.9em; }
     code { background: #f0f0f0; padding: 0.2em 0.4em; border-radius: 3px; font-size: 0.9em; }
     pre code { background: none; padding: 0; border-radius: 0; }
+    nav#id ol { list-style-type: none; padding-left: 1.2em; margin: 0.2em 0; }
+    nav#id > ol { padding-left: 0; }
+    nav#id > ol > li { margin-top: 0.4em; }
 """
 
 USER_AGENTS = [
